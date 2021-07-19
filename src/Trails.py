@@ -1,6 +1,8 @@
 import random
 import arcade
+#from arcade import gui
 from string import ascii_uppercase
+from PIL import Image
 
 from arcade.arcade_types import RGB
 from arcade.key import KEY_1, NUM_1, NUM_2
@@ -10,6 +12,47 @@ SPRITE_SCALING_BUBBLE = 0.2
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 SCREEN_TITLE = "Trails"
+
+#joystick constants
+MOVEMENT_SPEED = 7
+DEAD_ZONE = 0.25
+
+class Player(arcade.Sprite):
+    
+    def __init__(self, filename: str, scale: float):
+        super().__init__(filename, scale)
+
+        self.trail_point_list = [] #stores the points for showing the trail of the player sprite
+
+        self.joysticks = arcade.get_joysticks()
+
+        if self.joysticks:
+            arcade.draw_text("Joystick connected", SCREEN_WIDTH/2, SCREEN_WIDTH/2, arcade.color.BLACK, 20)
+            self.joystick = self.joysticks[0]
+            self.joystick.open()
+            self.joystick.push_handlers(self) #makes this obejct a handler for the joystick events
+        else:
+            self.joystick=None
+
+    def update(self):
+        if self.joystick:
+            #handles joystick movement
+            self.change_x = self.joystick.x*MOVEMENT_SPEED
+            #sets minimum movement of joystick to register movement
+            if abs(self.change_x) < DEAD_ZONE:
+                self.change_x = 0
+            
+            self.change_y = -self.joystick.y*MOVEMENT_SPEED
+            if abs(self.change_y) < DEAD_ZONE:
+                self.change_y = 0
+
+            self.center_x += self.change_x
+            self.center_y += self.change_y
+
+            if (abs(self.change_x)>0) or (abs(self.change_y)>0):
+                self.trail_point_list.append((self.center_x,self.center_y))
+            #mouse movement handled by TrailsView
+
 
 class Bubble(arcade.Sprite):
 
@@ -68,9 +111,11 @@ class TrailsView(arcade.View):
 
     def __init__(self, layout_mode_key):
         """Initializer"""
-        #call parent initializer
-        #super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, "Sprite Example")
         super().__init__()
+
+        #self.window = window
+        #self.uimanager = gui.UIManager(window)
+
 
         arcade.set_background_color(arcade.color.WHITE)
 
@@ -85,7 +130,6 @@ class TrailsView(arcade.View):
         else:
             self.layout_mode=None
 
-        self.trail_point_list = [] #stores the points for showing the trail of the player sprite
 
         #vars that hold lists of sprites
         self.player_list = None
@@ -161,7 +205,7 @@ class TrailsView(arcade.View):
         self.elapsedTime = 0.0
 
         #set up the player
-        self.player_sprite = arcade.Sprite("res/pointer.png", SPRITE_SCALING_PLAYER)
+        self.player_sprite = Player("res/pointer.png", SPRITE_SCALING_PLAYER)
         self.player_sprite.center_x = self.bubbleCoordsX[0]
         self.player_sprite.center_y = self.bubbleCoordsY[0]
         self.player_list.append(self.player_sprite)
@@ -200,25 +244,31 @@ class TrailsView(arcade.View):
         self.player_list.draw()
 
         arcade.draw_text(self.timeOutput, self.timerPos[0], self.timerPos[1], arcade.color.BLACK, 14)
-        arcade.draw_line_strip(self.trail_point_list, arcade.color.BLACK, 2)
+        arcade.draw_line_strip(self.player_sprite.trail_point_list, arcade.color.BLACK, 2)
 
     def on_mouse_motion(self, x, y, dx, dy):
+        #joystick motion is handled in Player sprite class (and timer is handled in update for that case)
         if self.gameStarted == False:
+            #starts the game if the player moves the mouse to circle 1 (mouse mode only)
             if ((x>self.bubbleCoordsX[0]-7) and (x<self.bubbleCoordsX[0]+7) and
-                 y>self.bubbleCoordsY[0]-7) and (y<self.bubbleCoordsY[0]+7):
+                 y>self.bubbleCoordsY[0]-7) and (y<self.bubbleCoordsY[0]+7) and not self.player_sprite.joysticks:
                 self.gameStarted = True
                 self.window.set_mouse_visible(False)
-        elif self.gameStarted == True:
+        elif self.gameStarted == True and not self.player_sprite.joystick:
             self.player_sprite.center_x = x
             self.player_sprite.center_y = y
-            self.trail_point_list.append((x,y))
+            self.player_sprite.trail_point_list.append((x,y))
+
 
 
     def update(self, delta_time):
         #movement and game logic
 
-        #start the game when the player moves their mouse to the first bubble
-        
+        if self.player_sprite.joysticks and \
+            self.player_sprite.center_x!=self.bubbleCoordsX[0]\
+            and self.player_sprite.center_y!=self.bubbleCoordsY[0]:
+            self.gameStarted = True
+            self.window.set_mouse_visible(False)
 
         #run timer if the game has started
         if self.gameStarted == True:
@@ -230,15 +280,20 @@ class TrailsView(arcade.View):
 
 
         self.bubble_list.update()
+        self.player_sprite.update()
         
         #list of all sprites that collided with the player sprite
         bubble_hit_list = arcade.check_for_collision_with_list(self.player_sprite, self.bubble_list)
         
         for bubble in bubble_hit_list:
             if bubble.id == self.nextBubble:
-                bubble.alpha = 100 #lower opacity when hit
+                #bubble.alpha = 100 #lower opacity when hit
                 self.nextBubble += 1
                 if self.nextBubble > self.bubble_count:
+                    #take screenshot
+                    #img = arcade.draw_commands.get_image()
+                    #if you get an error here, whitelist the program in Windows settings->controlled filesystem access
+                    #img.save(f"./output/{self.subjectID}_{self.layout_mode}_screenshot.png","PNG")
                     complete_view = GameCompleteView(self.timeOutput)
                     self.window.show_view(complete_view)
 

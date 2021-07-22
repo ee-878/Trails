@@ -1,6 +1,16 @@
-import random
+from typing import cast
+from datetime import datetime
+from PIL import *
 import arcade
-#from arcade import gui
+from arcade.gui.elements.flat_button import UIFlatButton
+from arcade.gui.elements.label import UILabel
+from arcade.gui.elements.inputbox import UIInputBox
+from arcade.gui import (
+    UIClickable,
+    UIManager,
+    UIEvent,
+)
+
 from string import ascii_uppercase
 from PIL import Image
 
@@ -60,10 +70,78 @@ class Bubble(arcade.Sprite):
         super().__init__(filename=filename, scale=scale)
         self.id = id
 
+class UserInputView(arcade.View):
+    #handles all ui/user info input
+
+    def __init__(self, window: arcade.Window):
+        #set up ui stuff for user input
+        self.window = window
+        self.ui_manager = UIManager(window)
+        self.ui_manager.push_handlers(self.on_ui_event)
+
+    def on_draw(self):
+        arcade.start_render()
+        self.ui_manager.on_draw()
+
+    def on_show_view(self):
+        arcade.set_background_color(arcade.color.BLACK)
+        self.ui_manager.purge_ui_elements()
+        self.ui_manager.add_ui_element(
+            UILabel(
+                text="Enter User Info:",
+                center_x=self.window.width // 2,
+                center_y=(self.window.height // 2) + 75,
+                min_size=(100, 40),
+            )
+        )
+        self.ui_manager.add_ui_element(
+            UIInputBox(
+                center_x=self.window.width // 2,
+                center_y=self.window.height // 2,
+                min_size=(100, 40),
+                text='(replace this text)',
+                id="user_id",
+            )
+        )
+        self.ui_manager.add_ui_element(
+            UIFlatButton(
+                text="Submit",
+                center_x=self.window.width // 2,
+                center_y=(self.window.height // 2) - 75,
+                min_size=(200, 40),
+                id="submit_button",
+            )
+        )
+    
+
+
+    def on_ui_event(self, event: UIEvent):
+        if (
+            event.type == UIClickable.CLICKED
+            and event.get("ui_element").id == "submit_button"
+        ):
+
+            #handle button click
+            self.submit()
+        elif (
+            event.type == UIInputBox.ENTER and event.get("ui_element").id == "user_id"
+        ):
+            self.submit()
+
+
+    def submit(self):
+        user_input = cast(UIInputBox, self.ui_manager.find_by_id("user_id"))
+        user_id = user_input.text
+        self.ui_manager.purge_ui_elements()
+        nextView = InstructionView(user_id)
+        self.window.show_view(nextView)
+
 class InstructionView(arcade.View):
 
-    def __init__(self):
+    def __init__(self, user_id):
+
         super().__init__()
+        self.user_id = user_id
 
     def on_show(self):
         arcade.set_background_color(arcade.csscolor.WHITE)
@@ -81,15 +159,17 @@ class InstructionView(arcade.View):
         if symbol==arcade.key.A or symbol==arcade.key.B \
             or symbol==arcade.key.NUM_1 or symbol==arcade.key.NUM_2 \
             or symbol==arcade.key.KEY_1 or symbol==arcade.key.KEY_2:
-            game_view = TrailsView(symbol)
+            game_view = TrailsView(symbol, self.user_id)
             game_view.setup()
             self.window.show_view(game_view)
 
+
 class GameCompleteView(arcade.View):
 
-    def __init__(self, timeOutput):
+    def __init__(self, timeOutput, user_id):
         super().__init__()
         self.timeOutput = timeOutput
+        self.user_id = user_id
         arcade.set_background_color(arcade.csscolor.GREEN)
 
     def on_draw(self):
@@ -103,21 +183,19 @@ class GameCompleteView(arcade.View):
         if symbol==arcade.key.A or symbol==arcade.key.B \
            or symbol==arcade.key.KEY_1 or symbol==arcade.key.NUM_1 \
            or symbol==arcade.key.KEY_2 or symbol==arcade.key.NUM_2:
-            game_view = TrailsView(symbol)
+            game_view = TrailsView(symbol, self.user_id)
             game_view.setup()
             self.window.show_view(game_view)
 
 class TrailsView(arcade.View):
 
-    def __init__(self, layout_mode_key):
+    def __init__(self, layout_mode_key, user_id):
         """Initializer"""
         super().__init__()
 
-        #self.window = window
-        #self.uimanager = gui.UIManager(window)
-
-
         arcade.set_background_color(arcade.color.WHITE)
+
+        self.user_id = user_id
 
         if layout_mode_key==arcade.key.A:
             self.layout_mode="A"
@@ -260,7 +338,6 @@ class TrailsView(arcade.View):
             self.player_sprite.trail_point_list.append((x,y))
 
 
-
     def update(self, delta_time):
         #movement and game logic
 
@@ -291,10 +368,15 @@ class TrailsView(arcade.View):
                 self.nextBubble += 1
                 if self.nextBubble > self.bubble_count:
                     #take screenshot
-                    #img = arcade.draw_commands.get_image()
-                    #if you get an error here, whitelist the program in Windows settings->controlled filesystem access
-                    #img.save(f"./output/{self.subjectID}_{self.layout_mode}_screenshot.png","PNG")
-                    complete_view = GameCompleteView(self.timeOutput)
+                    img_raw = arcade.draw_commands.get_image()
+                    width, height = img_raw.size
+                    img = Image.new(mode='RGBA',size=(width,height),color=(255,255,255))
+                    offset = (0, 0)
+                    img.paste(img_raw, offset, img_raw)
+                    time = datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
+                    #if you get an error here, whitelist the program in Windows settings->controlled folder access
+                    img.save(f"./output/{self.user_id}_{self.layout_mode}_{time}_screenshot.png","PNG")
+                    complete_view = GameCompleteView(self.timeOutput, self.user_id)
                     self.window.show_view(complete_view)
 
 
@@ -305,7 +387,7 @@ def main():
     SCREEN_WIDTH = round(0.5*SCREEN_WIDTH)
     SCREEN_HEIGHT = SCREEN_WIDTH*(round(11/8.5))
     game_window = arcade.Window(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
-    start_view = InstructionView()
+    start_view = UserInputView(game_window)
     game_window.show_view(start_view)
     arcade.run()
 

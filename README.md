@@ -1,8 +1,9 @@
 # Trails
-Trails game created for the Locomotor and Movement Lab at Auburn University for use in research projects.
+Trail making game created for the Locomotor and Movement Lab at Auburn University for use in research projects.
 
 This game was created to fill the need by researchers at Auburn University to have a digital version of an already existing (on paper) test known as a trail making test, 
-which is commonly used in Kinesiology research. 
+which is commonly used in Kinesiology research. This digital version allows for either mouse or game controller (joystick only) input, and will be used in upcoming research on 
+e-sports competitors.
 
 This game was written in Python and utilizes the Arcade library.
 To run this game, clone the repository and install the PIL and arcade libraries using pip.

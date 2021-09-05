@@ -1,5 +1,5 @@
 # Trails
-Trail making game created for the Locomotor and Movement Lab at Auburn University for use in research projects.
+Trail making game created for the Locomotor and Movement Control Lab at Auburn University for use in research projects.
 
 This game was created to fill the need by researchers at Auburn University to have a digital version of an already existing (on paper) test known as a trail making test, 
 which is commonly used in Kinesiology research. This digital version allows for either mouse or game controller (joystick only) input, and will be used in upcoming research on 
